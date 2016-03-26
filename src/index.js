@@ -16,11 +16,11 @@ var debug = require('debug')('arcgis-featureservice');
  */
 function FeatureService(options) {
   debug('creating instance of feature service');
-  
+
   if(!(this instanceof FeatureService)) {
     return new FeatureService(options);
   }
-  
+
   this.defaultSettings = {
     defaultResultOptions: {
       returnCountsOnly: false,
@@ -31,9 +31,9 @@ function FeatureService(options) {
       f: 'json'
     }
   };
-  
+
   this.settings = options ? defaults(options, this.defaultSettings) : this.defaultSettings;
-  
+
   if(options && options.defaultResultOptions) {
     this.settings.defaultResultOptions = defaults(options.defaultResultOptions, this.defaultSettings.defaultResultOptions);
   }
@@ -47,12 +47,12 @@ function FeatureService(options) {
  */
 FeatureService.prototype.get = function(params, callback) {
   debug('invoking get function');
-  
+
   var paramsWithDefaults = defaults(params, this.settings.defaultResultOptions);
   paramsWithDefaults.token = this.token;
-  
+
   debug('params: %s', stringify(paramsWithDefaults));
-  
+
   request.get({
     url: this.settings.url + '/query',
     qs: paramsWithDefaults,
@@ -60,32 +60,32 @@ FeatureService.prototype.get = function(params, callback) {
   }, function _getRequestCallback(err, response, body) {
     debug('get response: %s', stringify(body));
     var error;
-    
+
     if (err) {
       return callback(err);
     }
-    
+
     if (body.error) {
       error = new Error(body.error.message);
       error.code = body.error.code;
       error.details = body.error.details;
       return callback(error);
     }
-    
+
     if (!body.features || !body.features.map) {
       error = new Error('features are undefined');
       return callback(error);
     }
-    
+
     var esriFeatures = body.features;
     var geojsonFeatures = esriFeatures.map(arcgis.parse);
     var geojson = {
       type: 'FeatureCollection',
       features: geojsonFeatures
     };
-    
+
     return callback(null, geojson);
-    
+
   });
 };
 
@@ -115,10 +115,10 @@ FeatureService.prototype.add = function(geojson, callback) {
 FeatureService.prototype.update = function(geojson, callback) {
   debug('invoking update function');
   var esriJson = arcgis.convert(geojson);
-  
+
   // Convert OBJECTID to a number.
   esriJson.attributes.OBJECTID = Number(esriJson.attributes.OBJECTID);
-  
+
   request.post({
     f: 'json',
     url: this.settings.url + '/updateFeatures',
@@ -155,21 +155,21 @@ FeatureService.prototype.delete = function(id, callback) {
 function handleEsriResponse(callback) {
   return function(err, response, body) {
     var error;
-    
+
     if (err) {
       debug('HTTP request resulted in an error:', err);
       return callback(err);
     }
-    
+
     var json = body && JSON.parse(body);
-    
+
     if (!json) {
       debug('Response body was null or could not be parsed:', body);
       return callback(new Error('Response body was null or could not be parsed'));
     }
-    
+
     debug('Response body as JSON:', json);
-    
+
     // Get the results object from the response, which is the first and only object.
     // Since batch requests aren't implemented, this should be one of addResults, updateResults, or deleteResults.
     var results = json[Object.keys(json)[0]];
@@ -177,13 +177,13 @@ function handleEsriResponse(callback) {
       debug('Results object not found or is not as expected:', results);
       return callback(new Error('Results object not found or is not as expected'));
     }
-    
+
     // Assume we only get one result back (due to unimplemented batch operations).
     var result = results[0];
-    
+
     if (result.success) {
       debug('Success');
-      return callback(null);
+      return callback(null, result);
     } else if (result.error) {
       debug('Received error:', result.error);
       error = new Error(result.error.description);
